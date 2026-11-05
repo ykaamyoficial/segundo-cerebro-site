@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Segundo Cérebro</title>
+<style>
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:#02030f;color:#e8f4ff;font-family:system-ui,"Segoe UI",Roboto,sans-serif;overflow-x:hidden}
+#stage{position:relative;height:100svh;min-height:640px;overflow:hidden;
+  background:radial-gradient(60% 55% at 50% 48%,#1b1066 0%,#0a0b34 45%,#02030f 100%)}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+header{position:absolute;top:22px;left:0;right:0;text-align:center;pointer-events:none;padding:0 16px}
+h1{font-size:clamp(1.3rem,3vw,2.1rem);font-weight:700;letter-spacing:.04em;
+  background:linear-gradient(90deg,#5fe3ff,#b07bff);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 14px rgba(110,170,255,.55))}
+header p{margin-top:4px;font-size:.85rem;opacity:.65;letter-spacing:.08em}
+#foot{position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:.78rem;opacity:.55;letter-spacing:.06em}
+.orb{position:absolute;translate:-50% -50%;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em;
+  text-align:center;cursor:default;line-height:1.1;font-weight:600;
+  background:radial-gradient(circle at 35% 28%,rgba(130,210,255,.30),rgba(34,22,100,.78) 70%);
+  border:1px solid rgba(120,225,255,.6);
+  box-shadow:0 0 26px rgba(80,160,255,.45),inset 0 0 24px rgba(160,90,255,.38);
+  backdrop-filter:blur(3px);transition:scale .25s,box-shadow .25s;animation:float 6s ease-in-out infinite;animation-delay:var(--d)}
+.orb:hover{scale:1.09;box-shadow:0 0 40px rgba(120,200,255,.8),inset 0 0 28px rgba(190,120,255,.55)}
+.orb svg{width:1.9em;height:1.9em;fill:none;stroke:#8fe9ff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 4px rgba(120,230,255,.9))}
+.orb.core{border-color:rgba(255,190,100,.85);box-shadow:0 0 40px rgba(255,160,60,.5),0 0 70px rgba(100,150,255,.4),inset 0 0 30px rgba(255,170,80,.3);font-size:1.05em}
+.orb.core svg{stroke:#ffd49a;filter:drop-shadow(0 0 6px rgba(255,180,80,.9))}
+.sub{position:absolute;top:calc(100% + 6px);left:50%;translate:-50% 0;white-space:nowrap;font-weight:400;font-size:.82em;opacity:.72;pointer-events:none}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@media(max-width:700px){.sub{display:none}}
+@media(prefers-reduced-motion:reduce){.orb{animation:none}}
+</style>
+</head>
+<body>
+<main id="stage">
+  <canvas id="c" aria-hidden="true"></canvas>
+  <div id="orbs"></div>
+  <header><h1>Segundo Cérebro</h1><p>memória viva do Henrique, sincronizada entre máquinas</p></header>
+  <div id="foot"></div>
+</main>
+<script>
+(()=>{
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),orbsEl=document.getElementById('orbs'),foot=document.getElementById('foot');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const BOX={x0:60,x1:880,y0:40,y1:790};
+const IC={
+ brain:'<path d="M12 5v14"/><path d="M12 5a3 3 0 0 0-5.5 1.5A3.5 3.5 0 0 0 4 10a3.5 3.5 0 0 0 1.5 3A3.5 3.5 0 0 0 9 18a3 3 0 0 0 3 1"/><path d="M12 5a3 3 0 0 1 5.5 1.5A3.5 3.5 0 0 1 20 10a3.5 3.5 0 0 1-1.5 3A3.5 3.5 0 0 1 15 18a3 3 0 0 1-3 1"/>',
+ user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/>',
+ check:'<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+ layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+ link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+ zap:'<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+ sync:'<path d="M20 11a8 8 0 0 0-14-4L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14 4l2-2"/><path d="M20 20v-5h-5"/>',
+ shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+ list:'<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'
+};
+// key = pasta de memorias contada em data.json; sub = legenda fixa
+const NODES=[
+ {label:'Segundo Cérebro',sub:'Henrique + IA',x:500,y:340,core:1,icon:'brain',tip:'O núcleo: tudo aqui alimenta a IA em cada sessão'},
+ {label:'Perfil',key:'user',x:250,y:230,icon:'user',tip:'Quem eu sou e como prefiro trabalhar'},
+ {label:'Aprendizados',key:'feedback',x:470,y:120,icon:'check',tip:'Correções e acertos de abordagem'},
+ {label:'Projetos',key:'project',x:720,y:230,icon:'layers',tip:'Contexto dos projetos em andamento'},
+ {label:'Referências',key:'reference',x:780,y:400,icon:'link',tip:'Ponteiros para sistemas externos'},
+ {label:'Skills',key:'skills',x:200,y:420,icon:'zap',tip:'Ferramentas e skills que uso'},
+ {label:'Sincronia',sub:'pull ao abrir, push ao fechar',x:330,y:490,icon:'sync',tip:'git pull no início e push no fim de cada sessão'},
+ {label:'Índice',sub:'MEMORY.md',x:480,y:545,icon:'list',tip:'Índice lido no início de cada sessão'},
+ {label:'Segurança',sub:'filtro de segredos',x:650,y:520,icon:'shield',tip:'Bloqueia senhas, chaves e dados de clientes antes de salvar'}
+];
+NODES.forEach((n,i)=>{
+ const el=document.createElement('div');el.className='orb'+(n.core?' core':'');el.title=n.tip;el.style.setProperty('--d',(-i*.9)+'s');
+ el.innerHTML='<svg viewBox="0 0 24 24">'+IC[n.icon]+'</svg><span>'+n.label+'</span><span class="sub"></span>';
+ orbsEl.appendChild(el);n.el=el;n.subEl=el.querySelector('.sub');n.subEl.textContent=n.sub||'';
+});
+
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=rng(7);
+const inE=(x,y,cx,cy,rx,ry)=>((x-cx)/rx)**2+((y-cy)/ry)**2<=1;
+function inBrain(x,y){
+ const dx=(x-470)/390,dy=(y-320)/270,th=Math.atan2(dy,dx);
+ if(Math.hypot(dx,dy)<=1+.05*Math.sin(7*th)+.04*Math.sin(3*th+1))return true; // cérebro com "dobras"
+ if(inE(x,y,700,600,140,85))return true; // cerebelo
+ const t=(y-480)/300;return y>480&&y<790&&Math.abs(x-(540+t*40))<52-t*22; // tronco
+}
+const hue=x=>190+(x-BOX.x0)/(BOX.x1-BOX.x0)*85;
+const P=NODES.map(n=>({x:n.x,y:n.y,ph:R()*6.28}));
+for(let i=0;i<20000&&P.length<520;i++){
+ const x=BOX.x0+R()*(BOX.x1-BOX.x0),y=BOX.y0+R()*(BOX.y1-BOX.y0);
+ if(inBrain(x,y)&&P.every(p=>(p.x-x)**2+(p.y-y)**2>20*20))P.push({x,y,ph:R()*6.28});
+}
+P.forEach(p=>{const h=hue(p.x);p.col='hsla('+h+',100%,62%,.4)';p.dot='hsl('+h+',100%,72%)'});
+const E=[],seen=new Set();
+P.forEach((a,i)=>{
+ P.map((b,j)=>[j,(a.x-b.x)**2+(a.y-b.y)**2]).filter(([j,d])=>j!==i&&d<52*52).sort((u,v)=>u[1]-v[1]).slice(0,3)
+  .forEach(([j])=>{const k=i<j?i+'-'+j:j+'-'+i;if(!seen.has(k)){seen.add(k);E.push([i,j])}});
+});
+const STARS=P.filter((_,i)=>i>=NODES.length&&i%19===0).map(p=>({p,sp:Array.from({length:7},()=>[R()*6.28,14+R()*16])}));
+const NP=Array.from({length:38},()=>({e:E[R()*E.length|0],p:R(),v:.004+R()*.006,c:R()<.5?'rgba(120,230,255,.95)':'rgba(220,130,255,.95)'}));
+const core=NODES[0];
+const LINKS=NODES.slice(1).map((n,i)=>{const dx=n.x-core.x,dy=n.y-core.y,k=(i%2?.16:-.16);
+ return{n,c:{x:(core.x+n.x)/2-dy*k,y:(core.y+n.y)/2+dx*k},o:R(),dir:i%2?1:-1}});
+const bez=(a,c,b,t)=>({x:(1-t)**2*a.x+2*(1-t)*t*c.x+t*t*b.x,y:(1-t)**2*a.y+2*(1-t)*t*c.y+t*t*b.y});
+
+let W,H,dpr,s,ox,oy;
+const X=p=>ox+p.x*s,Y=p=>oy+p.y*s;
+function layout(){
+ dpr=Math.min(devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+ const padT=84,padB=52,aw=W*.96,ah=H-padT-padB,bw=BOX.x1-BOX.x0,bh=BOX.y1-BOX.y0;
+ s=Math.min(aw/bw,ah/bh);ox=(W-bw*s)/2-BOX.x0*s;oy=padT+(ah-bh*s)/2-BOX.y0*s;
+ NODES.forEach(n=>{
+  const sz=Math.max((n.core?150:112)*s,n.core?84:62);
+  Object.assign(n.el.style,{width:sz+'px',height:sz+'px',left:X(n)+'px',top:Y(n)+'px',fontSize:Math.max(9,sz*.115)+'px'});
+ });
+}
+function glow(x,y,r,c){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,c);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,6.2832);ctx.fill()}
+let last=0;
+function draw(t){
+ const dt=Math.min(t-last,50);last=t;
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);ctx.globalCompositeOperation='lighter';
+ // anéis orbitais
+ [[430,300,-.25,.00035],[400,330,.5,-.0003]].forEach(([rx,ry,rot,w])=>{
+  const cx=ox+470*s,cy=oy+390*s;
+  ctx.setLineDash([2,10]);ctx.strokeStyle='rgba(150,120,255,.32)';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.ellipse(cx,cy,rx*s,ry*s,rot,0,6.2832);ctx.stroke();ctx.setLineDash([]);
+  const a=t*w,px=rx*s*Math.cos(a),py=ry*s*Math.sin(a);
+  glow(cx+px*Math.cos(rot)-py*Math.sin(rot),cy+px*Math.sin(rot)+py*Math.cos(rot),9,'rgba(190,150,255,.9)');
+ });
+ ctx.lineWidth=1;
+ for(const [i,j] of E){const a=P[i],b=P[j];ctx.strokeStyle=a.col;ctx.beginPath();ctx.moveTo(X(a),Y(a));ctx.lineTo(X(b),Y(b));ctx.stroke()}
+ P.forEach((p,i)=>{if(i%3===0)glow(X(p),Y(p),30*s+8,'hsla('+hue(p.x)+',100%,60%,.07)')}); // volume do cérebro
+ for(const p of P){ctx.globalAlpha=.45+.55*Math.sin(t*.002+p.ph)**2;ctx.fillStyle=p.dot;ctx.beginPath();ctx.arc(X(p),Y(p),1.6,0,6.2832);ctx.fill()}
+ ctx.globalAlpha=1;
+ for(const st of STARS){const x=X(st.p),y=Y(st.p),k=.6+.4*Math.sin(t*.0025+st.p.ph);
+  glow(x,y,16*k+6,'rgba(210,110,255,.55)');ctx.strokeStyle='rgba(235,150,255,.55)';ctx.beginPath();
+  st.sp.forEach(([a,l])=>{ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a)*l*s*1.3,y+Math.sin(a)*l*s*1.3)});ctx.stroke();glow(x,y,4,'#fff')}
+ for(const q of NP){q.p+=q.v*dt/16;if(q.p>1){q.p=0;q.e=E[R()*E.length|0]}
+  const a=P[q.e[0]],b=P[q.e[1]];glow(X(a)+(X(b)-X(a))*q.p,Y(a)+(Y(b)-Y(a))*q.p,7,q.c)}
+ // ligações núcleo <-> áreas, com pulsos laranja
+ for(const L of LINKS){
+  const a={x:X(core),y:Y(core)},b={x:X(L.n),y:Y(L.n)},c={x:ox+L.c.x*s,y:oy+L.c.y*s};
+  ctx.strokeStyle='rgba(120,200,255,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo(c.x,c.y,b.x,b.y);ctx.stroke();
+  for(let k=0;k<2;k++){let u=(t*.0002+L.o+k*.5)%1;if(L.dir<0)u=1-u;const q=bez(a,c,b,u);glow(q.x,q.y,10,'rgba(255,170,70,.95)')}
+ }
+ ctx.globalCompositeOperation='source-over';
+ if(!reduce)requestAnimationFrame(draw);
+}
+const fmt=iso=>iso&&iso.split('-').reverse().join('/');
+fetch('data.json',{cache:'no-store'}).then(r=>r.json()).catch(()=>({})).then(d=>{
+ let total=0;
+ NODES.forEach(n=>{if(n.key&&typeof d[n.key]==='number'){total+=d[n.key];n.subEl.textContent=d[n.key]+(d[n.key]===1?' memória':' memórias')}});
+ foot.textContent=d.updated?'atualizado em '+fmt(d.updated)+' · '+total+(total===1?' memória':' memórias'):'';
+});
+addEventListener('resize',()=>{layout();if(reduce)draw(0)});
+layout();requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
